@@ -26,7 +26,7 @@ You’ve exported a Confluence space as HTML and need to:
 Expected layout from Confluence export:
 
 ```
-SUP/
+SPACE/
 ├── index.html
 ├── 12345678.html
 ├── 23456789.html
@@ -42,8 +42,8 @@ SUP/
 The script will generate:
 
 ```
-SUP_Output/
-├── Support Operations/
+SPACE_Output/
+├── Space Name/
 │   ├── Subfolder 1/
 │   │   ├── Page A.docx
 │   │   └── Page B.docx
@@ -78,14 +78,14 @@ pandoc --version
 
 ## 🚀 How to Use
 
-1. Place this script **next to** the Confluence export folder (`SUP/`)
+1. Place this script **next to** the Confluence export folder (`SPACE/`)
 2. Run:
 
 ```bash
 python confluence_export_to_docx.py
 ```
 
-3. Output will be created in `SUP_Output/`:
+3. Output will be created in `SPACE_Output/`:
 
    * Cleaned and structured HTML
    * `.docx` versions of each page (with embedded images)
