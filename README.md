@@ -3,7 +3,9 @@
 This project converts a **Confluence HTML space export** (e.g., `index.html` and flat HTML files with `images/`, `attachments/`, etc.) into:
 
 ✅ A structured folder hierarchy matching the original space layout
+
 ✅ Cleaned-up HTML files with broken internal links and Confluence UI elements removed
+
 ✅ `.docx` files for each Confluence page, with **embedded images** and working relative links
 
 ---
