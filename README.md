@@ -26,7 +26,7 @@ You’ve exported a Confluence space as HTML and need to:
 Expected layout from Confluence export:
 
 ```
-SPACE/
+<Exported_Space>/
 ├── index.html
 ├── 12345678.html
 ├── 23456789.html
@@ -42,8 +42,8 @@ SPACE/
 The script will generate:
 
 ```
-SPACE_Output/
-├── Space Name/
+<Output_Folder>/
+├── <Root_Space_Name>/
 │   ├── Subfolder 1/
 │   │   ├── Page A.docx
 │   │   └── Page B.docx
@@ -78,14 +78,24 @@ pandoc --version
 
 ## 🚀 How to Use
 
-1. Place this script **next to** the Confluence export folder (`SPACE/`)
-2. Run:
+1. Place this script **next to** the Confluence export folder (`<Exported_Space>/`)
+2. Edit the script (`confluence_export_to_docx.py`) and update these top-level variables:
+
+```python
+EXPORT_ROOT = Path("<Exported_Space>")
+OUTPUT_ROOT = Path("<Output_Folder>")
+ROOT_SPACE_NAME = "<Root_Space_Name>"  # This becomes the top-level folder in the DOCX export
+```
+
+Replace each placeholder with your actual folder and space name.
+
+3. Run the script:
 
 ```bash
 python confluence_export_to_docx.py
 ```
 
-3. Output will be created in `SPACE_Output/`:
+4. Output will be created in `<Output_Folder>/`:
 
    * Cleaned and structured HTML
    * `.docx` versions of each page (with embedded images)
@@ -106,7 +116,7 @@ The following elements are removed from the output:
 ## 📃 Tips
 
 * If `pandoc` isn't embedding images, it may be due to incorrect working directory. This script automatically invokes `pandoc` from the correct folder.
-* You can modify the root folder name by changing the `DOCX_BASE` variable inside the script.
+* You can modify the output folder name by changing the `OUTPUT_ROOT` variable inside the script.
 
 ---
 

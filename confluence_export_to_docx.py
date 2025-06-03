@@ -6,10 +6,10 @@ from bs4 import BeautifulSoup
 from urllib.parse import unquote
 
 # ---- CONFIG ----
-EXPORT_ROOT = Path("SUP")  # Input: flat Confluence HTML export
-OUTPUT_ROOT = Path("SUP_Output")  # Output: rewritten structure + DOCX
+EXPORT_ROOT = Path("<Exported_Space>")  # Input: flat Confluence HTML export
+OUTPUT_ROOT = Path("<Output_Folder>")  # Output: rewritten structure + DOCX
 INDEX_HTML = EXPORT_ROOT / "index.html"
-DOCX_BASE = Path("Support Operations")
+DOCX_BASE = Path("<Root_Space_Name>")
 ASSET_DIRS = ["images", "attachments", "styles"]
 PANDOC = "pandoc"  # or full path to pandoc if needed
 # ----------------
