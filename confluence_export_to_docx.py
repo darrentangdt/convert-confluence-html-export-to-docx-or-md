@@ -1,18 +1,18 @@
 import os
 import shutil
 import subprocess
+import argparse
 from pathlib import Path
 from bs4 import BeautifulSoup
 from urllib.parse import unquote
 
-# ---- CONFIG ----
-EXPORT_ROOT = Path("<Exported_Space>")  # Input: flat Confluence HTML export
-OUTPUT_ROOT = Path("<Output_Folder>")  # Output: rewritten structure + DOCX
-INDEX_HTML = EXPORT_ROOT / "index.html"
-DOCX_BASE = Path("<Root_Space_Name>")
+# ---- Default Config ----
+DEFAULT_EXPORT_ROOT = "<Exported_Space>"  # Input: flat Confluence HTML export
+DEFAULT_OUTPUT_ROOT = "<Output_Folder>"  # Output: rewritten structure + DOCX
+DEFAULT_DOCX_BASE = "<Root_Space_Name>"
 ASSET_DIRS = ["images", "attachments", "styles"]
 PANDOC = "pandoc"  # or full path to pandoc if needed
-# ----------------
+# -----------------------
 
 
 def sanitize(name):
@@ -128,7 +128,31 @@ def convert_html_to_docx(input_path: Path):
 
 
 def main():
-    print("📁 Parsing index.html...")
+    parser = argparse.ArgumentParser(description='Convert Confluence HTML export to DOCX files.')
+    parser.add_argument('--export-root', type=str, default=DEFAULT_EXPORT_ROOT,
+                      help=f'Root directory of the Confluence HTML export (default: {DEFAULT_EXPORT_ROOT})')
+    parser.add_argument('--output-root', type=str, default=DEFAULT_OUTPUT_ROOT,
+                      help=f'Output directory for the DOCX files (default: {DEFAULT_OUTPUT_ROOT})')
+    parser.add_argument('--docx-base', type=str, default=DEFAULT_DOCX_BASE,
+                      help=f'Base directory name for the DOCX files (default: {DEFAULT_DOCX_BASE})')
+    parser.add_argument('--cleanup', action='store_true',
+                      help='Delete the generated HTML files after creating DOCX files')
+    
+    args = parser.parse_args()
+    
+    # Set global variables from command line arguments
+    global EXPORT_ROOT, OUTPUT_ROOT, DOCX_BASE, INDEX_HTML
+    EXPORT_ROOT = Path(args.export_root)
+    OUTPUT_ROOT = Path(args.output_root)
+    DOCX_BASE = Path(args.docx_base)
+    INDEX_HTML = EXPORT_ROOT / "index.html"
+    
+    print(f"📁 Export root: {EXPORT_ROOT}")
+    print(f"📂 Output root: {OUTPUT_ROOT}")
+    print(f"📄 DOCX base directory: {DOCX_BASE}")
+    print(f"🧹 Cleanup HTML: {'Yes' if args.cleanup else 'No'}")
+    
+    print("\n📁 Parsing index.html...")
     with open(INDEX_HTML, "r", encoding="utf-8") as f:
         soup = BeautifulSoup(f, "html.parser")
     nav = soup.find("ul")
@@ -147,6 +171,14 @@ def main():
     print("📄 Converting to DOCX with Pandoc...")
     for html_file in rewritten_files:
         convert_html_to_docx(html_file)
+        
+        # Clean up HTML files if requested
+        if args.cleanup:
+            try:
+                html_file.unlink()
+                print(f"🧹 Deleted: {html_file.relative_to(OUTPUT_ROOT)}")
+            except Exception as e:
+                print(f"⚠ Failed to delete {html_file.relative_to(OUTPUT_ROOT)}: {e}")
 
 
 if __name__ == "__main__":

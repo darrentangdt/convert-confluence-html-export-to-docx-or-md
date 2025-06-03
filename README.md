@@ -78,16 +78,34 @@ pandoc --version
 
 ## 🚀 How to Use
 
-1. Place this script **next to** the Confluence export folder (`<Exported_Space>/`)
-2. Edit the script (`confluence_export_to_docx.py`) and update these top-level variables:
+### Option 1: Using Command Line Arguments (Recommended)
 
-```python
-EXPORT_ROOT = Path("<Exported_Space>")
-OUTPUT_ROOT = Path("<Output_Folder>")
-ROOT_SPACE_NAME = "<Root_Space_Name>"  # This becomes the top-level folder in the DOCX export
+```bash
+python confluence_export_to_docx.py \
+    --export-root "path/to/exported/space" \
+    --output-root "path/for/output" \
+    --docx-base "Root Space Name" \
+    --cleanup
 ```
 
-Replace each placeholder with your actual folder and space name.
+#### Available Arguments:
+- `--export-root`: Path to the directory containing the Confluence HTML export (default: "<Exported_Space>")
+- `--output-root`: Directory where the DOCX files will be saved (default: "<Output_Folder>")
+- `--docx-base`: Base directory name for the DOCX files (default: "<Root_Space_Name>")
+- `--cleanup`: Optional flag to delete intermediate HTML files after DOCX conversion
+
+### Option 2: Editing the Script
+
+Alternatively, you can edit the default values in the script:
+
+1. Open `confluence_export_to_docx.py`
+2. Update these default values at the top of the file:
+
+```python
+DEFAULT_EXPORT_ROOT = "<Exported_Space>"
+DEFAULT_OUTPUT_ROOT = "<Output_Folder>"
+DEFAULT_DOCX_BASE = "<Root_Space_Name>"
+```
 
 3. Run the script:
 
@@ -95,10 +113,11 @@ Replace each placeholder with your actual folder and space name.
 python confluence_export_to_docx.py
 ```
 
-4. Output will be created in `<Output_Folder>/`:
+### Output
 
-   * Cleaned and structured HTML
-   * `.docx` versions of each page (with embedded images)
+Output will be created in the specified output directory:
+- Cleaned and structured HTML (unless `--cleanup` is used)
+- `.docx` versions of each page (with embedded images)
 
 ---
 
