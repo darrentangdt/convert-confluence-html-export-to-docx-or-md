@@ -64,11 +64,13 @@ def build_structure_and_rewrite_links(page_map):
             with open(dest_html_path, "r", encoding="utf-8") as f:
                 soup = BeautifulSoup(f, "html.parser")
 
-            # --- Remove breadcrumbs and attachments ---
+            # --- Remove unwanted elements ---
+            # Remove breadcrumbs
             breadcrumb_section = soup.select_one("div#breadcrumb-section")
             if breadcrumb_section:
                 breadcrumb_section.decompose()
 
+            # Remove attachments section
             attachments_header = soup.select_one("h2#attachments")
             if attachments_header:
                 try:
@@ -76,6 +78,21 @@ def build_structure_and_rewrite_links(page_map):
                     attachments_section.decompose()
                 except Exception:
                     pass  # Skip if structure isn't what we expect
+                    
+            # Remove metadata table
+            metadata_table = soup.select_one("#main-content > div.plugin-tabmeta-details")
+            if metadata_table:
+                metadata_table.decompose()
+                
+            # Remove title heading
+            title_heading = soup.select_one("h1#title-heading")
+            if title_heading:
+                title_heading.decompose()
+            
+            # Remove footer
+            footer = soup.select_one("div#footer")
+            if footer:
+                footer.decompose()
 
             # --- Rewrite internal page links ---
             for a in soup.find_all("a", href=True):
