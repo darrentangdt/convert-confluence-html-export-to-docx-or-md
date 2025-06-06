@@ -93,6 +93,10 @@ def build_structure_and_rewrite_links(page_map):
             footer = soup.select_one("div#footer")
             if footer:
                 footer.decompose()
+                
+            # Remove expander divs with IDs like 'expander-123'
+            for expander in soup.find_all('div', id=lambda x: x and x.startswith('expander-')):
+                expander.decompose()
 
             # --- Rewrite internal page links ---
             for a in soup.find_all("a", href=True):
@@ -127,7 +131,17 @@ def copy_asset_dirs():
 
 def convert_html_to_docx(input_path: Path):
     output_path = input_path.with_suffix(".docx")
-    cmd = [PANDOC, "-o", str(output_path.name), str(input_path.name)]
+    
+    # Get the directory of the current script to find the Lua filter
+    script_dir = Path(__file__).parent
+    lua_filter = script_dir / "image-fullsize.lua"
+    
+    cmd = [
+        PANDOC,
+        "-o", str(output_path.name),
+        f"--lua-filter={lua_filter}",
+        str(input_path.name)
+    ]
 
     try:
         result = subprocess.run(
@@ -144,7 +158,42 @@ def convert_html_to_docx(input_path: Path):
         print(f"✗ Error running Pandoc on {input_path.name}: {e}")
 
 
+def print_summary(stats):
+    """Print a summary of the conversion process."""
+    print("\n" + "="*50)
+    print("📊 Conversion Summary")
+    print("="*50)
+    
+    if stats.get('html_generated', 0) > 0:
+        print(f"✅ HTML Files Generated: {stats.get('html_generated', 0)}")
+    
+    if stats.get('docx_converted', 0) > 0:
+        print(f"✅ DOCX Files Created: {stats.get('docx_converted', 0)}")
+    
+    if stats.get('html_cleaned', 0) > 0:
+        print(f"🧹 HTML Files Cleaned Up: {stats.get('html_cleaned', 0)}")
+    
+    if stats.get('assets_copied', 0) > 0:
+        print(f"📁 Assets Copied: {stats.get('assets_copied', 0)} directories")
+    
+    if stats.get('errors', []):
+        print("\n❌ Errors:")
+        for error in stats.get('errors', []):
+            print(f"  - {error}")
+    
+    print("="*50 + "\n")
+
+
 def main():
+    # Initialize statistics
+    stats = {
+        'html_generated': 0,
+        'docx_converted': 0,
+        'html_cleaned': 0,
+        'assets_copied': 0,
+        'errors': []
+    }
+    
     parser = argparse.ArgumentParser(description='Convert Confluence HTML export to DOCX files.')
     parser.add_argument('--export-root', type=str, default=DEFAULT_EXPORT_ROOT,
                       help=f'Root directory of the Confluence HTML export (default: {DEFAULT_EXPORT_ROOT})')
@@ -152,10 +201,22 @@ def main():
                       help=f'Output directory for the DOCX files (default: {DEFAULT_OUTPUT_ROOT})')
     parser.add_argument('--docx-base', type=str, default=DEFAULT_DOCX_BASE,
                       help=f'Base directory name for the DOCX files (default: {DEFAULT_DOCX_BASE})')
+    
+    # Mutually exclusive group for conversion options
+    conversion_group = parser.add_mutually_exclusive_group()
+    conversion_group.add_argument('--skip-docx', action='store_true',
+                               help='Skip DOCX conversion and only generate HTML files')
+    conversion_group.add_argument('--skip-html', action='store_true',
+                                help='Skip HTML generation and only convert existing HTML to DOCX')
+    
     parser.add_argument('--cleanup', action='store_true',
-                      help='Delete the generated HTML files after creating DOCX files')
+                      help='Delete the generated HTML files after creating DOCX files (cannot be used with --skip-docx)')
     
     args = parser.parse_args()
+    
+    # Validate arguments
+    if args.cleanup and args.skip_docx:
+        parser.error("--cleanup cannot be used with --skip-docx as it would delete the HTML files")
     
     # Set global variables from command line arguments
     global EXPORT_ROOT, OUTPUT_ROOT, DOCX_BASE, INDEX_HTML
@@ -167,6 +228,8 @@ def main():
     print(f"📁 Export root: {EXPORT_ROOT}")
     print(f"📂 Output root: {OUTPUT_ROOT}")
     print(f"📄 DOCX base directory: {DOCX_BASE}")
+    print(f"🔧 Skip HTML generation: {'Yes' if args.skip_html else 'No'}")
+    print(f"🔧 Skip DOCX conversion: {'Yes' if args.skip_docx else 'No'}")
     print(f"🧹 Cleanup HTML: {'Yes' if args.cleanup else 'No'}")
     
     print("\n📁 Parsing index.html...")
@@ -179,23 +242,62 @@ def main():
 
     page_map = walk_index(nav, DOCX_BASE)
 
-    print("🧱 Rewriting HTML and creating folder structure...")
-    rewritten_files = build_structure_and_rewrite_links(page_map)
-
-    print("🖼️ Copying assets...")
-    copy_asset_dirs()
-
-    print("📄 Converting to DOCX with Pandoc...")
-    for html_file in rewritten_files:
-        convert_html_to_docx(html_file)
-        
-        # Clean up HTML files if requested
-        if args.cleanup:
+    rewritten_files = []
+    
+    # Generate HTML files if not skipped
+    rewritten_files = []
+    if not args.skip_html:
+        print("🧱 Rewriting HTML and creating folder structure...")
+        try:
+            rewritten_files = build_structure_and_rewrite_links(page_map)
+            stats['html_generated'] = len(rewritten_files)
+            print("🖼️ Copying assets...")
             try:
-                html_file.unlink()
-                print(f"🧹 Deleted: {html_file.relative_to(OUTPUT_ROOT)}")
+                copy_asset_dirs()
+                stats['assets_copied'] = len(ASSET_DIRS)
             except Exception as e:
-                print(f"⚠ Failed to delete {html_file.relative_to(OUTPUT_ROOT)}: {e}")
+                stats['errors'].append(f"Failed to copy assets: {str(e)}")
+        except Exception as e:
+            stats['errors'].append(f"HTML generation failed: {str(e)}")
+            raise
+    else:
+        # If skipping HTML generation, find all HTML files in the output directory
+        print("⏩ Skipping HTML generation, using existing files...")
+        for docx_path in page_map.values():
+            html_path = OUTPUT_ROOT / docx_path.with_suffix('.html')
+            if not html_path.exists():
+                error_msg = f"HTML file not found: {html_path}. Cannot skip HTML generation when files don't exist."
+                stats['errors'].append(error_msg)
+                raise FileNotFoundError(error_msg)
+            rewritten_files.append(html_path)
+    
+    # Convert to DOCX if not skipped
+    if not args.skip_docx:
+        print("📄 Converting to DOCX with Pandoc...")
+        for html_file in rewritten_files:
+            try:
+                convert_html_to_docx(html_file)
+                stats['docx_converted'] += 1
+                
+                # Clean up HTML files if requested
+                if args.cleanup:
+                    try:
+                        html_file.unlink()
+                        print(f"🧹 Deleted: {html_file.relative_to(OUTPUT_ROOT)}")
+                        stats['html_cleaned'] += 1
+                    except Exception as e:
+                        error_msg = f"Failed to delete {html_file.relative_to(OUTPUT_ROOT)}: {e}"
+                        print(f"⚠ {error_msg}")
+                        stats['errors'].append(error_msg)
+            except Exception as e:
+                error_msg = f"Failed to convert {html_file.relative_to(OUTPUT_ROOT)}: {e}"
+                print(f"❌ {error_msg}")
+                stats['errors'].append(error_msg)
+    else:
+        print("⏩ Skipping DOCX conversion")
+    
+    # Print summary
+    print_summary(stats)
 
 
 if __name__ == "__main__":
