@@ -7,9 +7,9 @@ from bs4 import BeautifulSoup
 from urllib.parse import unquote
 
 # ---- Default Config ----
-DEFAULT_EXPORT_ROOT = "<Exported_Space>"  # Input: flat Confluence HTML export
-DEFAULT_OUTPUT_ROOT = "<Output_Folder>"  # Output: rewritten structure + DOCX
-DEFAULT_DOCX_BASE = "<Root_Space_Name>"
+DEFAULT_EXPORT_ROOT = "Exported_Space"  # Input: flat Confluence HTML export
+DEFAULT_OUTPUT_ROOT = "Output"  # Output: rewritten structure + DOCX
+DEFAULT_DOCX_BASE = "Exported Space"
 ASSET_DIRS = ["images", "attachments", "styles"]
 PANDOC = "pandoc"  # or full path to pandoc if needed
 # -----------------------
