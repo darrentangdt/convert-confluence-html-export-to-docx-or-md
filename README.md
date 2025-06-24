@@ -1,127 +1,139 @@
-# Confluence导出转换工具使用说明
+# Confluence HTML导出转换工具使用文档
 
-## 📌 功能概述
+## 目录
+- [功能概述](#功能概述)
+- [系统要求](#系统要求)
+- [安装指南](#安装指南)
+- [使用方法](#使用方法)
+  - [基本命令](#基本命令)
+  - [参数详解](#参数详解)
+  - [使用示例](#使用示例)
+- [输出结构](#输出结构)
+- [常见问题](#常见问题)
+- [最佳实践](#最佳实践)
 
-本工具用于将Confluence导出的HTML空间转换为：
-- **Markdown**（默认输出格式）
-- **DOCX**（Microsoft Word格式）
+## 功能概述
 
-主要功能特点：
-✅ 保留原始页面层次结构  
-✅ 自动清理Confluence特有元素  
-✅ 智能处理图片和附件  
-✅ 支持批量转换整个空间  
+本工具用于将Confluence导出的HTML空间转换为结构化文档，支持两种输出格式：
 
-## 🛠️ 系统要求
+1. **Markdown**（默认输出）
+   - 符合GitHub Flavored Markdown规范
+   - 自动清理Confluence特有标签
+   - 智能处理图片引用
 
-- Python 3.6+
-- Pandoc（文档转换工具）
-- BeautifulSoup4（HTML处理库）
+2. **DOCX**（Word文档）
+   - 保留原始格式
+   - 支持自定义模板
+   - 自动处理图表和附件
+
+## 系统要求
+
+| 组件 | 要求 |
+|------|------|
+| 操作系统 | Windows/macOS/Linux |
+| Python | 3.6+ |
+| 依赖包 | packaging, beautifulsoup4 |
+| Pandoc | 1.12+ |
+
+## 安装指南
+
+### 1. 安装Python依赖
 
 ```bash
-# 安装依赖
 pip install packaging beautifulsoup4
+```
 
-# 安装Pandoc（各系统通用）
-# macOS: brew install pandoc
-# Windows: choco install pandoc
-# Linux: sudo apt-get install pandoc
+### 2. 安装Pandoc
 
-🚀 基本用法
-bash
+#### macOS (Homebrew)
+```bash
+brew install pandoc
+```
+#### Windows (Chocolatey)
+```bash
+choco install pandoc
+```
+#### Linux (APT)
+```bash
+sudo apt-get install pandoc
+```
+### 3. 验证安装
+```bash
+python convert_confluence.py --help
+```
+## 使用方法
+### 基本命令
+```bash
 python convert_confluence.py [选项]
-无参数运行时显示帮助
-直接运行脚本将显示完整帮助信息和示例：
-
-bash
-python convert_confluence.py
-⚙️ 参数说明
-参数	说明	默认值
---export-root	Confluence导出目录路径	Exported_Space
---output-root	输出文件目录路径	Output
---type	输出格式 (markdown/docx)	markdown
---skip-html	跳过HTML预处理阶段	否
---cleanup	转换后删除中间HTML文件	否
-🏆 最佳实践示例
-示例1：转换为Markdown
-bash
+参数详解
+参数	说明	默认值	示例
+--export-root	Confluence导出目录	Exported_Space	--export-root /path/to/export
+--output-root	输出目录	Output	--output-root /path/to/output
+--type	输出格式 (markdown/docx)	markdown	--type docx
+--skip-html	跳过HTML预处理	False	--skip-html
+--cleanup	转换后删除中间文件	False	--cleanup
+```
+### 使用示例
+#### 示例1：基本转换（Markdown）
 python convert_confluence.py \
-  --export-root /path/to/confluence_export \
-  --output-root /path/to/markdown_output
-示例2：转换为DOCX
-bash
+  --export-root Confluence_Export \
+  --output-root Markdown_Output
+#### 示例2：转换为Word文档
 python convert_confluence.py \
   --type docx \
-  --export-root /path/to/confluence_export \
-  --output-root /path/to/docx_output
-示例3：仅转换（跳过HTML生成）
-bash
+  --export-root Confluence_Export \
+  --output-root Word_Docs
+#### 示例3：继续未完成的转换
 python convert_confluence.py \
   --skip-html \
-  --export-root /path/to/confluence_export
-示例4：转换后自动清理
-bash
+  --export-root Confluence_Export
+#### 示例4：转换后自动清理
 python convert_confluence.py \
   --cleanup \
-  --export-root /path/to/confluence_export
-📂 输出结构
-Markdown输出
-text
+  --export-root Confluence_Export
+
+## 输出结构
+### Markdown输出
 Output/
-├── assets/           # 图片/附件资源
+├── assets/               # 资源文件目录
+│   ├── image1.png
+│   └── attachment.pdf
 ├── 首页.md
-├── 产品文档/
-│   ├── 功能说明.md
-│   └── 用户手册.md
-└── 技术文档/
-    ├── API参考.md
-    └── 部署指南.md
-DOCX输出
-text
+└── 产品文档/
+    ├── 功能说明.md
+    └── 用户手册.md
+### DOCX输出
+
 Output/
-├── images/           # 图片资源
-├── attachments/      # 附件文件
+├── images/               # 图片目录
+│   ├── diagram1.png
+│   └── screenshot.jpg
+├── attachments/          # 附件目录
+│   └── document.pdf
 ├── 首页.docx
-├── 产品文档/
-│   ├── 功能说明.docx
-│   └── 用户手册.docx
 └── 技术文档/
     ├── API参考.docx
     └── 部署指南.docx
-💡 高级技巧
-使用模板文件（仅DOCX）：
 
-在脚本目录放置template.docx可自定义输出样式
 
-图片处理：
+## 常见问题
+Q1: 转换失败怎么办？
+- 检查错误日志
+- 确认Pandoc已安装
+- 尝试减少批量转换的文件数量
 
-Markdown格式使用assets统一目录
+Q2: 图片显示不正常？
+- 检查assets或images目录是否存在
+- 确认图片路径是否正确
+- 尝试使用--skip-html重新转换
 
-支持后处理Lua脚本（image-fullsize.lua）
+Q3: 如何保留更多格式？
+- 编辑template.docx自定义样式
+- 修改Lua过滤器处理特定元素
 
-错误排查：
-
-bash
-# 查看详细错误日志
-python convert_confluence.py 2> error.log
-⚠️ 注意事项
-确保Confluence导出包含完整的：
-
-index.html文件
-
-images/和attachments/目录
-
-首次使用建议不要加--cleanup参数，先检查输出结果
-
-大空间转换建议：
-
-bash
-# Linux/Mac后台运行
-nohup python convert_confluence.py > conversion.log 2>&1 &
-转换中断后再次运行时，可添加--skip-html继续未完成的转换
-
-📌 提示：转换完成后会显示详细的统计报告，包含成功/失败的文件数量
-
+## 最佳实践
+首次测试
+- 先用小空间导出测试，确认效果后再处理大空间
 
 
 
@@ -142,7 +154,6 @@ The following elements are removed from the output:
 * If `pandoc` isn't embedding images, it may be due to incorrect working directory. This script automatically invokes `pandoc` from the correct folder.
 * You can modify the output folder name by changing the `OUTPUT_ROOT` variable inside the script.
 
----
 
 ## 📄 License
 
