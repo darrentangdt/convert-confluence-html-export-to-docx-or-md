@@ -1,125 +1,130 @@
-# Confluence HTML Export to Structured DOCX Converter
+# Confluence导出转换工具使用说明
 
-This project converts a **Confluence HTML space export** (e.g., `index.html` and flat HTML files with `images/`, `attachments/`, etc.) into:
+## 📌 功能概述
 
-✅ A structured folder hierarchy matching the original space layout
+本工具用于将Confluence导出的HTML空间转换为：
+- **Markdown**（默认输出格式）
+- **DOCX**（Microsoft Word格式）
 
-✅ Cleaned-up HTML files with broken internal links and Confluence UI elements removed
+主要功能特点：
+✅ 保留原始页面层次结构  
+✅ 自动清理Confluence特有元素  
+✅ 智能处理图片和附件  
+✅ 支持批量转换整个空间  
 
-✅ `.docx` files for each Confluence page, with **embedded images** and working relative links
+## 🛠️ 系统要求
 
----
-
-## 🔧 Use Case
-
-You’ve exported a Confluence space as HTML and need to:
-
-* Upload the documentation to SharePoint or another DOCX-compatible platform
-* Preserve the original page structure and hierarchy
-* Embed images and attachments into the final Word documents
-* Strip out Confluence-specific UI elements (breadcrumbs, attachment listings, footers)
-
----
-
-## 📁 Input Structure (Confluence Export)
-
-Expected layout from Confluence export:
-
-```
-<Exported_Space>/
-├── index.html
-├── 12345678.html
-├── 23456789.html
-├── images/
-├── attachments/
-├── styles/
-```
-
----
-
-## 📂 Output Structure (Generated)
-
-The script will generate:
-
-```
-<Output_Folder>/
-├── <Root_Space_Name>/
-│   ├── Subfolder 1/
-│   │   ├── Page A.docx
-│   │   └── Page B.docx
-│   ├── Page C.docx
-│   └── ...
-├── images/
-├── attachments/
-├── styles/
-```
-
----
-
-## 🧰 Requirements
-
-* Python 3.8+
-* `beautifulsoup4`
-* [`pandoc`](https://pandoc.org/) must be installed and accessible in your PATH
-
-Install Python dependencies:
+- Python 3.6+
+- Pandoc（文档转换工具）
+- BeautifulSoup4（HTML处理库）
 
 ```bash
-pip install beautifulsoup4
-```
+# 安装依赖
+pip install packaging beautifulsoup4
 
-Check if `pandoc` is installed:
+# 安装Pandoc（各系统通用）
+# macOS: brew install pandoc
+# Windows: choco install pandoc
+# Linux: sudo apt-get install pandoc
 
-```bash
-pandoc --version
-```
+🚀 基本用法
+bash
+python convert_confluence.py [选项]
+无参数运行时显示帮助
+直接运行脚本将显示完整帮助信息和示例：
 
----
+bash
+python convert_confluence.py
+⚙️ 参数说明
+参数	说明	默认值
+--export-root	Confluence导出目录路径	Exported_Space
+--output-root	输出文件目录路径	Output
+--type	输出格式 (markdown/docx)	markdown
+--skip-html	跳过HTML预处理阶段	否
+--cleanup	转换后删除中间HTML文件	否
+🏆 最佳实践示例
+示例1：转换为Markdown
+bash
+python convert_confluence.py \
+  --export-root /path/to/confluence_export \
+  --output-root /path/to/markdown_output
+示例2：转换为DOCX
+bash
+python convert_confluence.py \
+  --type docx \
+  --export-root /path/to/confluence_export \
+  --output-root /path/to/docx_output
+示例3：仅转换（跳过HTML生成）
+bash
+python convert_confluence.py \
+  --skip-html \
+  --export-root /path/to/confluence_export
+示例4：转换后自动清理
+bash
+python convert_confluence.py \
+  --cleanup \
+  --export-root /path/to/confluence_export
+📂 输出结构
+Markdown输出
+text
+Output/
+├── assets/           # 图片/附件资源
+├── 首页.md
+├── 产品文档/
+│   ├── 功能说明.md
+│   └── 用户手册.md
+└── 技术文档/
+    ├── API参考.md
+    └── 部署指南.md
+DOCX输出
+text
+Output/
+├── images/           # 图片资源
+├── attachments/      # 附件文件
+├── 首页.docx
+├── 产品文档/
+│   ├── 功能说明.docx
+│   └── 用户手册.docx
+└── 技术文档/
+    ├── API参考.docx
+    └── 部署指南.docx
+💡 高级技巧
+使用模板文件（仅DOCX）：
 
-## 🚀 How to Use
+在脚本目录放置template.docx可自定义输出样式
 
-### Option 1: Using Command Line Arguments (Recommended)
+图片处理：
 
-```bash
-python confluence_export_to_docx.py \
-    --export-root "path/to/exported/space" \
-    --output-root "path/for/output" \
-    --docx-base "Root Space Name" \
-    --cleanup
-```
+Markdown格式使用assets统一目录
 
-#### Available Arguments:
-- `--export-root`: Path to the directory containing the Confluence HTML export (default: "<Exported_Space>")
-- `--output-root`: Directory where the DOCX files will be saved (default: "<Output_Folder>")
-- `--docx-base`: Base directory name for the DOCX files (default: "<Root_Space_Name>")
-- `--cleanup`: Optional flag to delete intermediate HTML files after DOCX conversion
+支持后处理Lua脚本（image-fullsize.lua）
 
-### Option 2: Editing the Script
+错误排查：
 
-Alternatively, you can edit the default values in the script:
+bash
+# 查看详细错误日志
+python convert_confluence.py 2> error.log
+⚠️ 注意事项
+确保Confluence导出包含完整的：
 
-1. Open `confluence_export_to_docx.py`
-2. Update these default values at the top of the file:
+index.html文件
 
-```python
-DEFAULT_EXPORT_ROOT = "<Exported_Space>"
-DEFAULT_OUTPUT_ROOT = "<Output_Folder>"
-DEFAULT_DOCX_BASE = "<Root_Space_Name>"
-```
+images/和attachments/目录
 
-3. Run the script:
+首次使用建议不要加--cleanup参数，先检查输出结果
 
-```bash
-python confluence_export_to_docx.py
-```
+大空间转换建议：
 
-### Output
+bash
+# Linux/Mac后台运行
+nohup python convert_confluence.py > conversion.log 2>&1 &
+转换中断后再次运行时，可添加--skip-html继续未完成的转换
 
-Output will be created in the specified output directory:
-- Cleaned and structured HTML (unless `--cleanup` is used)
-- `.docx` versions of each page (with embedded images)
+📌 提示：转换完成后会显示详细的统计报告，包含成功/失败的文件数量
 
----
+
+
+
 
 ## 🧹 What Gets Cleaned
 
