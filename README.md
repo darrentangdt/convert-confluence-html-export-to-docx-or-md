@@ -77,22 +77,13 @@ python convert_confluence.py [选项]
 ```
 ### 使用示例
 #### 示例1：基本转换（Markdown）
-python convert_confluence.py \
-  --export-root Confluence_Export \
-  --output-root Markdown_Output
+python convert_confluence.py   --export-root Confluence_Export   --output-root Markdown_Output
 #### 示例2：转换为Word文档
-python convert_confluence.py \
-  --type docx \
-  --export-root Confluence_Export \
-  --output-root Word_Docs
+python convert_confluence.py   --type docx   --export-root Confluence_Export   --output-root Word_Docs
 #### 示例3：继续未完成的转换
-python convert_confluence.py \
-  --skip-html \
-  --export-root Confluence_Export
+python convert_confluence.py   --skip-html   --export-root Confluence_Export
 #### 示例4：转换后自动清理
-python convert_confluence.py \
-  --cleanup \
-  --export-root Confluence_Export
+python convert_confluence.py   --cleanup   --export-root Confluence_Export
 
 ## 输出结构
 ### Markdown输出
