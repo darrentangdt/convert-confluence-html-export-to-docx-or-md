@@ -1,5 +1,7 @@
 # Confluence HTML导出转换工具使用文档
 
+本项目基于https://github.com/jrogersdb/convert-confluence-html-export-to-docx/ 进行了优化，同时支持了markdown和docx格式。
+
 ## 目录
 - [功能概述](#功能概述)
 - [系统要求](#系统要求)
@@ -138,21 +140,24 @@ Q3: 如何保留更多格式？
 
 
 
-## 🧹 What Gets Cleaned
+## 🧹 What Gets Cleaned / 清理了什么
 
 The following elements are removed from the output:
+以下元素将从输出中移除：
 
-* Confluence **breadcrumbs** (`<div id="breadcrumb-section">`)
-* **Attachments sections** (`<h2 id="attachments">` and its surrounding container)
-* Internal links rewritten to point to relative `.docx` equivalents
-* Asset links (images, styles) rewritten as relative paths
+* Confluence **breadcrumbs** (`<div id="breadcrumb-section">`)  / Confluence 面包屑 ( <div id="breadcrumb-section"> )
+* **Attachments sections** (`<h2 id="attachments">` and its surrounding container) / 附件部分（ <h2 id="attachments"> 及其周围容器）
+* Internal links rewritten to point to relative `.docx` equivalents / 内部链接重写为指向相对的 .docx 等价项
+* Asset links (images, styles) rewritten as relative paths / 资产链接（图片、样式）重写为相对路径
+
 
 ---
 
 ## 📃 Tips
 
-* If `pandoc` isn't embedding images, it may be due to incorrect working directory. This script automatically invokes `pandoc` from the correct folder.
-* You can modify the output folder name by changing the `OUTPUT_ROOT` variable inside the script.
+* If `pandoc` isn't embedding images, it may be due to incorrect working directory. This script automatically invokes `pandoc` from the correct folder. / 如果 pandoc 没有嵌入图片，可能是由于工作目录不正确。此脚本会从正确的文件夹自动调用 pandoc 。
+
+* You can modify the output folder name by changing the `OUTPUT_ROOT` variable inside the script. / 您可以通过修改脚本内的 OUTPUT_ROOT 变量来更改输出文件夹名称。
 
 
 ## 📄 License
