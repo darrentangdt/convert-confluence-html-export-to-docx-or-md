@@ -5,35 +5,67 @@ import argparse
 from pathlib import Path
 from bs4 import BeautifulSoup
 from urllib.parse import unquote
+from packaging.version import parse as parse_version
 
 # ---- Default Config ----
-DEFAULT_EXPORT_ROOT = "Exported_Space"  # Input: flat Confluence HTML export
-DEFAULT_OUTPUT_ROOT = "Output"  # Output: rewritten structure + DOCX
-DEFAULT_DOCX_BASE = "Exported Space"
+DEFAULT_EXPORT_ROOT = "Exported_Space"
+DEFAULT_OUTPUT_ROOT = "Output"
 ASSET_DIRS = ["images", "attachments", "styles"]
-PANDOC = "pandoc"  # or full path to pandoc if needed
+PANDOC = "pandoc"
+DEFAULT_OUTPUT_TYPE = "markdown"
 # -----------------------
 
+def print_usage_example():
+    """打印使用示例"""
+    print("\n使用示例:")
+    print("1. 转换为Markdown(默认):")
+    print("   python convert_confluence.py --export-root MyConfluenceExport --output-root MyOutput")
+    print("\n2. 转换为DOCX:")
+    print("   python convert_confluence.py --type docx --export-root MyConfluenceExport --output-root MyOutput")
+    print("\n3. 跳过HTML生成(仅转换):")
+    print("   python convert_confluence.py --skip-html --export-root MyConfluenceExport --output-root MyOutput")
+    print("\n4. 转换后清理中间文件:")
+    print("   python convert_confluence.py --cleanup --export-root MyConfluenceExport --output-root MyOutput")
+    print("\n5. 显示完整帮助:")
+    print("   python convert_confluence.py --help")
+
+def get_pandoc_version():
+    """获取Pandoc版本号"""
+    try:
+        result = subprocess.run([PANDOC, "--version"], 
+                              capture_output=True, 
+                              text=True,
+                              check=True)
+        first_line = result.stdout.split('\n')[0]
+        version_str = first_line.split()[1]
+        return parse_version(version_str)
+    except Exception as e:
+        print(f"⚠ 警告: 无法获取Pandoc版本 ({e})")
+        return parse_version("0.0.0")
 
 def sanitize(name):
+    """清理文件名中的非法字符"""
     return "".join(c if c.isalnum() or c in " -._" else "_" for c in name).strip()
 
-
-def walk_index(ul, current_path):
+def walk_index(ul, base_path):
+    """遍历Confluence索引文件"""
     page_map = {}
     for li in ul.find_all("li", recursive=False):
         a = li.find("a")
         if a and "href" in a.attrs:
             href = unquote(a["href"])
             title = sanitize(a.get_text(strip=True))
-            rel_docx_path = current_path / f"{title}.docx"
-            page_map[href] = rel_docx_path
+            rel_path = base_path / title
+            page_map[href] = {
+                'path': rel_path,
+                'title': title
+            }
             for child_ul in li.find_all("ul", recursive=False):
-                page_map.update(walk_index(child_ul, current_path / title))
+                page_map.update(walk_index(child_ul, rel_path))
     return page_map
 
-
-def rewrite_assets(soup: BeautifulSoup, docx_path: Path):
+def rewrite_assets(soup: BeautifulSoup, output_path: Path, format_type: str):
+    """重写资源文件路径"""
     for tag, attr in [("img", "src"), ("link", "href"), ("script", "src"), ("a", "href")]:
         for el in soup.find_all(tag):
             src = el.get(attr)
@@ -42,20 +74,24 @@ def rewrite_assets(soup: BeautifulSoup, docx_path: Path):
             for asset_dir in ASSET_DIRS:
                 if src.startswith(asset_dir + "/"):
                     abs_asset_path = EXPORT_ROOT / src
-                    rel_path = os.path.relpath(abs_asset_path, start=(OUTPUT_ROOT / docx_path).parent)
+                    if format_type == 'docx':
+                        rel_path = os.path.relpath(abs_asset_path, start=output_path.parent)
+                    else:  # MD格式
+                        rel_path = os.path.relpath(abs_asset_path, start=EXPORT_ROOT)
+                        rel_path = str(Path('assets') / rel_path.split('/')[-1])
                     el[attr] = rel_path.replace(os.sep, "/")
                     break
 
-
-def build_structure_and_rewrite_links(page_map):
+def build_structure_and_rewrite_links(page_map, format_type):
+    """构建目录结构并重写链接"""
     rewritten_html_paths = []
-    for html_filename, docx_path in page_map.items():
+    for html_filename, page_info in page_map.items():
         src_path = EXPORT_ROOT / html_filename
         if not src_path.exists():
-            print(f"⚠ Missing source HTML: {html_filename}")
+            print(f"⚠ 缺少源HTML文件: {html_filename}")
             continue
 
-        dest_html_path = OUTPUT_ROOT / docx_path.with_suffix(".html")
+        dest_html_path = OUTPUT_ROOT / page_info['path'].with_suffix(".html")
         dest_html_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
@@ -64,84 +100,86 @@ def build_structure_and_rewrite_links(page_map):
             with open(dest_html_path, "r", encoding="utf-8") as f:
                 soup = BeautifulSoup(f, "html.parser")
 
-            # --- Remove unwanted elements ---
-            # Remove breadcrumbs
-            breadcrumb_section = soup.select_one("div#breadcrumb-section")
-            if breadcrumb_section:
-                breadcrumb_section.decompose()
+            # 清理不需要的元素
+            for element in [
+                "div#breadcrumb-section",
+                "h2#attachments",
+                "#main-content > div.plugin-tabmeta-details",
+                "h1#title-heading",
+                "div#footer",
+                lambda x: x and x.startswith('expander-')
+            ]:
+                if isinstance(element, str):
+                    el = soup.select_one(element)
+                    if el:
+                        el.decompose()
+                else:
+                    for el in soup.find_all('div', id=element):
+                        el.decompose()
 
-            # Remove attachments section
-            attachments_header = soup.select_one("h2#attachments")
-            if attachments_header:
-                try:
-                    attachments_section = attachments_header.parent.parent
-                    attachments_section.decompose()
-                except Exception:
-                    pass  # Skip if structure isn't what we expect
-                    
-            # Remove metadata table
-            metadata_table = soup.select_one("#main-content > div.plugin-tabmeta-details")
-            if metadata_table:
-                metadata_table.decompose()
-                
-            # Remove title heading
-            title_heading = soup.select_one("h1#title-heading")
-            if title_heading:
-                title_heading.decompose()
-            
-            # Remove footer
-            footer = soup.select_one("div#footer")
-            if footer:
-                footer.decompose()
-                
-            # Remove expander divs with IDs like 'expander-123'
-            for expander in soup.find_all('div', id=lambda x: x and x.startswith('expander-')):
-                expander.decompose()
+            # 转换图片为Markdown格式
+            if format_type == 'markdown':
+                for img_wrapper in soup.find_all('span', class_='confluence-embedded-file-wrapper'):
+                    img = img_wrapper.find('img')
+                    if img and img.has_attr('src'):
+                        alt_text = img.get('alt', '')
+                        img_src = img['src']
+                        md_img = f'![{alt_text}]({img_src})'
+                        img_wrapper.replace_with(md_img)
 
-            # --- Rewrite internal page links ---
+            # 重写内部链接
             for a in soup.find_all("a", href=True):
                 href = unquote(a["href"])
                 if href.endswith(".html") and href in page_map:
-                    target_docx = page_map[href]
-                    rel_path = os.path.relpath(target_docx, start=docx_path.parent)
+                    target_path = page_map[href]['path']
+                    rel_path = os.path.relpath(
+                        OUTPUT_ROOT / target_path.with_suffix('.md' if format_type == 'markdown' else '.docx'),
+                        start=dest_html_path.parent
+                    )
                     a["href"] = rel_path.replace(os.sep, "/")
 
-            # --- Rewrite asset paths (images, css, etc) ---
-            rewrite_assets(soup, docx_path)
+            rewrite_assets(soup, dest_html_path, format_type)
 
             with open(dest_html_path, "w", encoding="utf-8") as f:
                 f.write(str(soup))
 
             rewritten_html_paths.append(dest_html_path)
-            print(f"✓ Rewritten: {html_filename} → {dest_html_path.relative_to(OUTPUT_ROOT)}")
+            print(f"✓ 已重写: {html_filename} → {dest_html_path.relative_to(OUTPUT_ROOT)}")
 
         except Exception as e:
-            print(f"✗ Failed rewriting {html_filename}: {e}")
+            print(f"✗ 重写失败 {html_filename}: {e}")
     return rewritten_html_paths
 
-
-def copy_asset_dirs():
+def copy_asset_dirs(format_type):
+    """复制资源目录"""
     for asset_dir in ASSET_DIRS:
         src = EXPORT_ROOT / asset_dir
-        dst = OUTPUT_ROOT / asset_dir
+        if format_type == 'markdown':
+            dst = OUTPUT_ROOT / 'assets'
+        else:
+            dst = OUTPUT_ROOT / asset_dir
+            
         if src.exists():
             shutil.copytree(src, dst, dirs_exist_ok=True)
-            print(f"✓ Copied asset dir: {asset_dir}")
+            print(f"✓ 已复制资源目录: {asset_dir} → {dst.relative_to(OUTPUT_ROOT)}")
 
-
-def convert_html_to_docx(input_path: Path):
-    output_path = input_path.with_suffix(".docx")
-    
-    # Get the directory of the current script to find the Lua filter
-    script_dir = Path(__file__).parent
-    lua_filter = script_dir / "image-fullsize.lua"
+def convert_to_format(input_path: Path, format_type: str):
+    """完全兼容的格式转换函数"""
+    output_path = input_path.with_suffix(".docx" if format_type == 'docx' else '.md')
     
     cmd = [
         PANDOC,
         "-o", str(output_path.name),
-        f"--lua-filter={lua_filter}",
+        "--to", "gfm" if format_type == 'markdown' else "docx",
+        "--wrap=auto",
         str(input_path.name)
     ]
+
+    # 添加Lua过滤器（如果存在）
+    script_dir = Path(__file__).parent
+    lua_filter = script_dir / "image-fullsize.lua"
+    if lua_filter.exists():
+        cmd.insert(1, f"--lua-filter={lua_filter}")
 
     try:
         result = subprocess.run(
@@ -151,154 +189,166 @@ def convert_html_to_docx(input_path: Path):
             cwd=input_path.parent
         )
         if result.returncode == 0:
-            print(f"✓ Converted: {input_path.relative_to(OUTPUT_ROOT)} → {output_path.name}")
-        else:
-            print(f"✗ Pandoc failed: {input_path.name} ({result.stderr.strip()})")
+            if format_type == 'markdown':
+                post_process_markdown_images(output_path)
+            print(f"✓ 已转换为 {format_type.upper()}: {input_path.relative_to(OUTPUT_ROOT)} → {output_path.name}")
+            return True
+        print(f"✗ Pandoc转换失败 ({format_type}): {input_path.name} ({result.stderr.strip()})")
+        return False
     except Exception as e:
-        print(f"✗ Error running Pandoc on {input_path.name}: {e}")
+        print(f"✗ 运行Pandoc出错 ({format_type}) 文件 {input_path.name}: {e}")
+        return False
 
+def post_process_markdown_images(md_file: Path):
+    """后处理Markdown文件中的图片引用"""
+    try:
+        with open(md_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        replacements = [
+            ('<img src="', '![]('),
+            ('" class="confluence-embedded-image">', ')'),
+            ('</span>', ''),
+            ('<span class="confluence-embedded-file-wrapper">', '')
+        ]
+        for old, new in replacements:
+            content = content.replace(old, new)
+        
+        with open(md_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+    except Exception as e:
+        print(f"⚠ 后处理Markdown图片失败 {md_file}: {e}")
 
 def print_summary(stats):
-    """Print a summary of the conversion process."""
+    """打印转换摘要"""
     print("\n" + "="*50)
-    print("📊 Conversion Summary")
+    print("📊 转换摘要")
     print("="*50)
-    
-    if stats.get('html_generated', 0) > 0:
-        print(f"✅ HTML Files Generated: {stats.get('html_generated', 0)}")
-    
-    if stats.get('docx_converted', 0) > 0:
-        print(f"✅ DOCX Files Created: {stats.get('docx_converted', 0)}")
-    
-    if stats.get('html_cleaned', 0) > 0:
-        print(f"🧹 HTML Files Cleaned Up: {stats.get('html_cleaned', 0)}")
-    
-    if stats.get('assets_copied', 0) > 0:
-        print(f"📁 Assets Copied: {stats.get('assets_copied', 0)} directories")
-    
-    if stats.get('errors', []):
-        print("\n❌ Errors:")
-        for error in stats.get('errors', []):
+    stats_map = {
+        'html_generated': "✅ 生成的HTML文件",
+        'docx_converted': "✅ 创建的DOCX文件",
+        'md_converted': "✅ 创建的Markdown文件",
+        'html_cleaned': "🧹 清理的HTML文件",
+        'assets_copied': "📁 复制的资源目录"
+    }
+    for key, label in stats_map.items():
+        if stats.get(key, 0) > 0:
+            print(f"{label}: {stats[key]}")
+    if stats.get('errors'):
+        print("\n❌ 错误:")
+        for error in stats['errors']:
             print(f"  - {error}")
-    
     print("="*50 + "\n")
 
-
 def main():
-    # Initialize statistics
+    global EXPORT_ROOT, OUTPUT_ROOT, INDEX_HTML
+    
     stats = {
         'html_generated': 0,
         'docx_converted': 0,
+        'md_converted': 0,
         'html_cleaned': 0,
         'assets_copied': 0,
         'errors': []
     }
     
-    parser = argparse.ArgumentParser(description='Convert Confluence HTML export to DOCX files.')
-    parser.add_argument('--export-root', type=str, default=DEFAULT_EXPORT_ROOT,
-                      help=f'Root directory of the Confluence HTML export (default: {DEFAULT_EXPORT_ROOT})')
-    parser.add_argument('--output-root', type=str, default=DEFAULT_OUTPUT_ROOT,
-                      help=f'Output directory for the DOCX files (default: {DEFAULT_OUTPUT_ROOT})')
-    parser.add_argument('--docx-base', type=str, default=DEFAULT_DOCX_BASE,
-                      help=f'Base directory name for the DOCX files (default: {DEFAULT_DOCX_BASE})')
+    parser = argparse.ArgumentParser(
+        description='将Confluence HTML导出转换为Markdown或DOCX文档',
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="示例:\n"
+               "  python convert_confluence.py --export-root MyExport --output-root MyOutput\n"
+               "  python convert_confluence.py --type docx --export-root MyExport\n"
+               "  python convert_confluence.py --skip-html --cleanup"
+    )
     
-    # Mutually exclusive group for conversion options
-    conversion_group = parser.add_mutually_exclusive_group()
-    conversion_group.add_argument('--skip-docx', action='store_true',
-                               help='Skip DOCX conversion and only generate HTML files')
-    conversion_group.add_argument('--skip-html', action='store_true',
-                                help='Skip HTML generation and only convert existing HTML to DOCX')
-    
+    parser.add_argument('--export-root', default=DEFAULT_EXPORT_ROOT,
+                      help=f'Confluence HTML导出目录 (默认: {DEFAULT_EXPORT_ROOT})')
+    parser.add_argument('--output-root', default=DEFAULT_OUTPUT_ROOT,
+                      help=f'输出目录 (默认: {DEFAULT_OUTPUT_ROOT})')
+    parser.add_argument('--type', choices=['markdown', 'docx'], default=DEFAULT_OUTPUT_TYPE,
+                      help=f'输出格式 (默认: {DEFAULT_OUTPUT_TYPE})')
+    parser.add_argument('--skip-html', action='store_true',
+                      help='跳过HTML生成阶段(使用已有HTML文件)')
     parser.add_argument('--cleanup', action='store_true',
-                      help='Delete the generated HTML files after creating DOCX files (cannot be used with --skip-docx)')
+                      help='转换完成后删除中间HTML文件')
+    
+    # 如果没有参数，显示帮助信息
+    if len(os.sys.argv) == 1:
+        parser.print_help()
+        print_usage_example()
+        return
     
     args = parser.parse_args()
     
-    # Validate arguments
-    if args.cleanup and args.skip_docx:
-        parser.error("--cleanup cannot be used with --skip-docx as it would delete the HTML files")
-    
-    # Set global variables from command line arguments
-    global EXPORT_ROOT, OUTPUT_ROOT, DOCX_BASE, INDEX_HTML
     EXPORT_ROOT = Path(args.export_root)
     OUTPUT_ROOT = Path(args.output_root)
-    DOCX_BASE = Path(args.docx_base)
     INDEX_HTML = EXPORT_ROOT / "index.html"
+    format_type = args.type
     
-    print(f"📁 Export root: {EXPORT_ROOT}")
-    print(f"📂 Output root: {OUTPUT_ROOT}")
-    print(f"📄 DOCX base directory: {DOCX_BASE}")
-    print(f"🔧 Skip HTML generation: {'Yes' if args.skip_html else 'No'}")
-    print(f"🔧 Skip DOCX conversion: {'Yes' if args.skip_docx else 'No'}")
-    print(f"🧹 Cleanup HTML: {'Yes' if args.cleanup else 'No'}")
+    # 验证导出目录
+    if not EXPORT_ROOT.exists():
+        print(f"❌ 错误: 导出目录不存在 {EXPORT_ROOT}")
+        return
     
-    print("\n📁 Parsing index.html...")
-    with open(INDEX_HTML, "r", encoding="utf-8") as f:
-        soup = BeautifulSoup(f, "html.parser")
-    nav = soup.find("ul")
-    if not nav:
-        print("✗ Could not find <ul> in index.html")
+    print(f"\n{'='*50}")
+    print(f"📁 导出目录: {EXPORT_ROOT}")
+    print(f"📂 输出目录: {OUTPUT_ROOT}")
+    print(f"🔧 输出格式: {format_type}")
+    print(f"🔧 跳过HTML生成: {'是' if args.skip_html else '否'}")
+    print(f"🧹 清理HTML: {'是' if args.cleanup else '否'}")
+    print(f"{'='*50}\n")
+    
+    print("📁 解析index.html...")
+    try:
+        with open(INDEX_HTML, "r", encoding="utf-8") as f:
+            soup = BeautifulSoup(f, "html.parser")
+        nav = soup.find("ul")
+        if not nav:
+            raise ValueError("在index.html中找不到<ul>元素")
+        page_map = walk_index(nav, Path())
+    except Exception as e:
+        stats['errors'].append(f"解析index.html失败: {str(e)}")
+        print_summary(stats)
         return
 
-    page_map = walk_index(nav, DOCX_BASE)
-
-    rewritten_files = []
-    
-    # Generate HTML files if not skipped
     rewritten_files = []
     if not args.skip_html:
-        print("🧱 Rewriting HTML and creating folder structure...")
+        print("🧱 重写HTML并创建目录结构...")
         try:
-            rewritten_files = build_structure_and_rewrite_links(page_map)
+            rewritten_files = build_structure_and_rewrite_links(page_map, format_type)
             stats['html_generated'] = len(rewritten_files)
-            print("🖼️ Copying assets...")
+            print("🖼️ 复制资源文件...")
             try:
-                copy_asset_dirs()
+                copy_asset_dirs(format_type)
                 stats['assets_copied'] = len(ASSET_DIRS)
             except Exception as e:
-                stats['errors'].append(f"Failed to copy assets: {str(e)}")
+                stats['errors'].append(f"复制资源失败: {str(e)}")
         except Exception as e:
-            stats['errors'].append(f"HTML generation failed: {str(e)}")
-            raise
+            stats['errors'].append(f"HTML生成失败: {str(e)}")
     else:
-        # If skipping HTML generation, find all HTML files in the output directory
-        print("⏩ Skipping HTML generation, using existing files...")
-        for docx_path in page_map.values():
-            html_path = OUTPUT_ROOT / docx_path.with_suffix('.html')
-            if not html_path.exists():
-                error_msg = f"HTML file not found: {html_path}. Cannot skip HTML generation when files don't exist."
-                stats['errors'].append(error_msg)
-                raise FileNotFoundError(error_msg)
-            rewritten_files.append(html_path)
-    
-    # Convert to DOCX if not skipped
-    if not args.skip_docx:
-        print("📄 Converting to DOCX with Pandoc...")
-        for html_file in rewritten_files:
-            try:
-                convert_html_to_docx(html_file)
-                stats['docx_converted'] += 1
-                
-                # Clean up HTML files if requested
+        print("⏩ 跳过HTML生成...")
+        for page_info in page_map.values():
+            html_path = OUTPUT_ROOT / page_info['path'].with_suffix('.html')
+            if html_path.exists():
+                rewritten_files.append(html_path)
+            else:
+                stats['errors'].append(f"HTML文件不存在: {html_path}")
+
+    print(f"\n📄 转换为 {format_type.upper()}...")
+    for html_file in rewritten_files:
+        try:
+            if convert_to_format(html_file, format_type):
+                stats[f"{'md' if format_type == 'markdown' else 'docx'}_converted"] += 1
                 if args.cleanup:
                     try:
                         html_file.unlink()
-                        print(f"🧹 Deleted: {html_file.relative_to(OUTPUT_ROOT)}")
                         stats['html_cleaned'] += 1
                     except Exception as e:
-                        error_msg = f"Failed to delete {html_file.relative_to(OUTPUT_ROOT)}: {e}"
-                        print(f"⚠ {error_msg}")
-                        stats['errors'].append(error_msg)
-            except Exception as e:
-                error_msg = f"Failed to convert {html_file.relative_to(OUTPUT_ROOT)}: {e}"
-                print(f"❌ {error_msg}")
-                stats['errors'].append(error_msg)
-    else:
-        print("⏩ Skipping DOCX conversion")
-    
-    # Print summary
-    print_summary(stats)
+                        stats['errors'].append(f"删除文件失败 {html_file}: {e}")
+        except Exception as e:
+            stats['errors'].append(f"转换失败 {html_file}: {e}")
 
+    print_summary(stats)
 
 if __name__ == "__main__":
     main()
