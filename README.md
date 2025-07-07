@@ -87,6 +87,7 @@ python convert_confluence.py   --cleanup   --export-root Confluence_Export
 
 ## 输出结构
 ### Markdown输出
+```bash
 Output/
 ├── assets/               # 资源文件目录
 │   ├── image1.png
@@ -96,7 +97,8 @@ Output/
     ├── 功能说明.md
     └── 用户手册.md
 ### DOCX输出
-
+```
+```bash
 Output/
 ├── images/               # 图片目录
 │   ├── diagram1.png
@@ -107,6 +109,7 @@ Output/
 └── 技术文档/
     ├── API参考.docx
     └── 部署指南.docx
+```
 
 
 ## 常见问题
